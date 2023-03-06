@@ -8,6 +8,11 @@ int is_hex_char(char c)
 			(c >= 'a' && c <= 'f');
 }
 
+void print_not_hex(char* hex_value)
+{
+	printf("%s is NOT a hex string\n", hex_value);
+}
+
 int main(int argc, char** argv)
 {
 	if (argc != 2)
@@ -18,11 +23,19 @@ int main(int argc, char** argv)
 
 	int len = strlen(argv[1]);
 
+	/* Hex values are always divisible by two (assuming they come in pairs of two) */
+	if (len % 2 != 0)
+	{
+		print_not_hex(argv[1]);
+		return 1;
+	}
+
+
 	for (int i = 0; i < len; ++i)
 	{
 		if (!is_hex_char(argv[1][i]))
 		{
-			printf("%s is NOT a hex string\n", argv[1]);
+			print_not_hex(argv[1]);
 			return 1;
 		}
 	}

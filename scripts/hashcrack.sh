@@ -20,18 +20,28 @@ _fetch_rockyou() {
 
 [ -f "$ROCKYOU_LIST" ] || _fetch_rockyou
 
+# Cache the hashcat help command to make things a bit quicker
+HASHCAT_HELP="$HOME/.cache/ctf_tools/hashcat_help.txt"
+[ -f $HASHCAT_HELP ] || hashcat --help > $HASHCAT_HELP
+
 HEX_CHECK="$EXEC_PATH/../build/tools/hex_check"
 [ -f $HEX_CHECK ] || { echo "hex_check not found! Did you remember to compile all of the tools?"; exit 1; }
 
 HASH="$1"
 
+# Check the potfile before doing anything
+[ -f $HASHCAT_POTFILE ] && POTFILE_RESULT="$(awk "/^$HASH/" $HASHCAT_POTFILE)"
+[ -n "$POTFILE_RESULT" ] && echo "Password: $(echo $POTFILE_RESULT | cut -d':' -f2)" && exit 0
+
 # Make sure that the hash is a hex string
 $HEX_CHECK "$HASH" || exit 1
 
-HASH_LENGTH="$(echo "$(echo $HASH | wc -m)-1" | bc)"
+HASH_LENGTH="$(printf -n $HASH | wc -m)"
 echo "Length: $HASH_LENGTH"
 
 _crack() {
+	echo "Cracking mode: $(awk -F'|' "/^[[:space:]]*$1 / { print \$2 }" $HASHCAT_HELP | head -n 1 | tr -d ' ')"
+
 	echo "Starting with a dictionary attack. Hit 's' to see statistics"
 
 	# Dictionary attack
@@ -48,8 +58,22 @@ _crack() {
 
 case $HASH_LENGTH in
 	32) # md5
-		echo "Guessing md5..."
 		_crack "0" "$HASH"
+
+		# If no results were found, give md4 a try
+		[ -z "$RESULT" ] && _crack "900" "$HASH"
+		;;
+
+	40) # sha1
+		_crack "100" "$HASH"
+		;;
+
+	64) # sha256
+		_crack "1400" "$HASH"
+		;;
+
+	128) # sha512 :(
+		_crack "1700" "$HASH"
 		;;
 
 	*) # Coudn't do any hash type guesses

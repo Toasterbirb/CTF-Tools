@@ -29,6 +29,9 @@ HEX_CHECK="$EXEC_PATH/../build/tools/hex_check"
 
 HASH="$1"
 
+# Remove any unnecessary chars from the hash
+HASH="$(printf "$HASH" | tr -d ' .')"
+
 # Check the potfile before doing anything
 [ -f $HASHCAT_POTFILE ] && POTFILE_RESULT="$(awk "/^$HASH/" $HASHCAT_POTFILE)"
 [ -n "$POTFILE_RESULT" ] && echo "Password: $(echo $POTFILE_RESULT | cut -d':' -f2)" && exit 0

@@ -36,7 +36,7 @@ HASH="$1"
 # Make sure that the hash is a hex string
 $HEX_CHECK "$HASH" || exit 1
 
-HASH_LENGTH="$(printf -n $HASH | wc -m)"
+HASH_LENGTH="$(printf $HASH | wc -m)"
 echo "Length: $HASH_LENGTH"
 
 _crack() {
@@ -68,8 +68,16 @@ case $HASH_LENGTH in
 		_crack "100" "$HASH"
 		;;
 
+	56) # sha224
+		_crack "1300" "$HASH"
+		;;
+
 	64) # sha256
 		_crack "1400" "$HASH"
+		;;
+
+	96) # sha384
+		_crack "10800" "$HASH"
 		;;
 
 	128) # sha512 :(

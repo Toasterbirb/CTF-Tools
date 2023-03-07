@@ -38,7 +38,7 @@ _fetch_english() {
 
 [ -f "$1" ] || { echo "Usage: ./magic_search.sh [path to CyberChef magic output file]"; exit 1; }
 
-DATA="$(cat "$1" | jq -r '.[].data' | sort | uniq -u)"
+DATA="$(cat "$1" | jq -r '.[].data' | sort | uniq -u | sed 's/_/ /g; s/-/ /g; s/\./ /g')"
 
 echo "Trying dictionaries..."
 for i in $DATA

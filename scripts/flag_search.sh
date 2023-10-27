@@ -1,0 +1,181 @@
+#!/bin/bash
+
+# Look for plaintext flags from different file formats (ELF, PNG, JPEG etc.)
+# The script will deduce the file format and try to carve the flag out
+
+# Tool paths
+EXEC_PATH=$(dirname $0)
+BASE_CHECK="$EXEC_PATH/../build/tools/base_check"
+PASSWORD_LIST="/usr/share/wordlists/rockyou.txt"
+
+# Print program usage help
+function print_usage()
+{
+	echo "Usage: $0 [flag format ex. flag{%}] [file path]"
+	exit 1
+}
+
+# Check if a dependency program exists on the system
+function check_program()
+{
+	unset MISSING_DEPS
+	for i in $@
+	do
+		[ ! -f "/usr/bin/$i" ] && [ ! -f "/usr/local/bin/$i" ] && echo "$i is not installed!" && MISSING_DEPS="true"
+	done
+
+	if [ -n "$MISSING_DEPS" ]
+	then
+		echo "Missing dependencies were found! Aborting mission..."
+		exit 1
+	fi
+}
+
+function check_file()
+{
+	unset MISSING_FILES
+	for i in $@
+	do
+		[ ! -f "$i" ] && echo "$i was not found!" && MISSING_FILES="true"
+	done
+
+	if [ -n "$MISSING_FILES" ]
+	then
+		echo "Missing files were found! Aborting mission..."
+		exit 1
+	fi
+}
+
+function check_flag()
+{
+	# Print the flag if the input is non-empty
+	#
+	# If the flag was found, commit suicide with exit code 141
+	# This is to avoid any unnecessary checks that might waste time
+
+	read flag_input
+	[ -n "$flag_input" ] && echo -e "\e[31mThe flag was found with [$1]!\e[0m" && echo "$flag_input" && kill -SIGPIPE "$$"
+}
+
+# Check if all args are set correctly
+[ -z "$1" ] && print_usage
+[ -z "$2" ] && print_usage
+[ ! -f "$2" ] && echo "File $2 doesn't exist!" && exit 2
+
+FLAG_FORMAT="$1"
+FILE="$2"
+
+# Create a glob version of the flag pattern
+FLAG_GLOB="$(echo $FLAG_FORMAT | sed 's/%/\.\*/g')"
+
+# Check the flag format length in base64
+FLAG_BASE64_LEN="$(echo $FLAG_FORMAT | base64 | wc -c)"
+
+# Check for some basic programs
+check_program file base64 base32
+
+# Define some more functions
+flag_finder()
+{
+	DATA="$2"
+
+	# Look for plain text flags
+	echo "$DATA" | grep -o "$FLAG_GLOB" | check_flag "$1, plaintext"
+
+	# Only process lines that are longer than the length of the flag format
+	# in base64. This should save lots of time when there's lots of data to go through
+	FILTERED_DATA="$(echo "$DATA" | awk "length(\$0) > $FLAG_BASE64_LEN")"
+
+	# Go line by line and look for base64/base32 strings
+	for i in $FILTERED_DATA
+	do
+		BASE_RESULT="$("$BASE_CHECK" "$i")"
+
+		if [ -n "$(echo "$BASE_RESULT" | grep base64)" ]
+		then
+			echo -n "$i" | base64 -d | grep -o "$FLAG_GLOB" | check_flag "$1, base64"
+		fi
+
+		if [ -n "$(echo "$BASE_RESULT" | grep base32)" ]
+		then
+			echo -n "$i" | base32 -d | grep -o "$FLAG_GLOB" | check_flag "$1, base32"
+		fi
+	done
+}
+
+# Check the filetype
+FILETYPE="$(file -b --mime-type "$FILE")"
+
+# Do general filetype specific checks first
+case $FILETYPE in
+	image/*)
+		# EXIF-data check
+		flag_finder "EXIF-data" "$(exiftool "$FILE" | cut -d':' -f2 | tr -d '^ ')"
+		;;
+
+	application/pdf)
+		# Convert the pdf file to text and grep it
+		check_program "pdftotext"
+		flag_finder "PDF to text" "$(pdftotext "$FILE" -)"
+		;;
+
+	text/plain)
+		# If the file is simply plain text (and possibly large)
+		# we can try grepping for the flag
+		flag_finder "grep" "$(grep "$FLAG_GLOB" "$FILE")"
+		;;
+esac
+
+## General strings check ##
+# The strings check is done last because it might consume lots of time
+# with larger files.
+check_program strings
+
+# Usage: strings_check [file path to check] [parent check]
+function strings_check()
+{
+	[ -n "$2" ] && PARENT_CHECK="$2, "
+	flag_finder "${PARENT_CHECK}strings" "$(strings "$1")"
+	flag_finder "${PARENT_CHECK}strings with whitespace removed" "$(strings "$1" | tr -d ' ')"
+	flag_finder "${PARENT_CHECK}strings with special characters removed" "$(strings "$1" | tr -d ',.!@$%&')"
+}
+
+# No need for parent "check" source here, since this is the first strings run
+strings_check "$FILE"
+
+
+## binwalk ##
+check_program binwalk
+TMP_BINWALK="$(mktemp -u -d ./binwalk_out_XXXX)"
+binwalk -e -r -C "$TMP_BINWALK" "$FILE"
+BINWALK_FILES="$(find $TMP_BINWALK -type f)"
+for i in $BINWALK_FILES
+do
+	# Run strings on everything
+	strings_check "$i" "binwalk"
+done
+rm -r "${TMP_BINWALK:?}"
+
+# Steganography tool checks, that may include time consuming password cracking
+case $FILETYPE in
+	image/jpeg)
+		check_program "stegseek"
+		check_file "$PASSWORD_LIST"
+
+		STEGSEEK_OUTPUT="$(mktemp -u ./stegoutXXXX)"
+		stegseek "$FILE" "$PASSWORD_LIST" "$STEGSEEK_OUTPUT"
+
+		# Only check the flag directly if the output was in text format
+		if [ -f "$STEGSEEK_OUTPUT" ]
+		then
+			if [ "$(file -b --mime-type $STEGSEEK_OUTPUT)" == "text/plain" ]
+			then
+				flag_finder "stegseek" "$(cat $STEGSEEK_OUTPUT)" && rm -f $STEGSEEK_OUTPUT
+			else
+				echo -e "\e[31mA flag was found from the JPEG file but it was in something other than plaintext format!\e[0m"
+				echo "The output file can be found at $STEGSEEK_OUTPUT"
+			fi
+		fi
+		;;
+esac
+

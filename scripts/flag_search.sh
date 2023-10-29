@@ -6,6 +6,9 @@
 # Tool paths
 EXEC_PATH=$(dirname $0)
 BASE_CHECK="$EXEC_PATH/../build/tools/base_check"
+BASE_FILTER="$EXEC_PATH/../build/tools/base_filter"
+HEX_CHECK="$EXEC_PATH/../build/tools/hex_check"
+
 PASSWORD_LIST="/usr/share/wordlists/rockyou.txt"
 
 # Print program usage help
@@ -21,7 +24,7 @@ function check_program()
 	unset MISSING_DEPS
 	for i in $@
 	do
-		[ ! -f "/usr/bin/$i" ] && [ ! -f "/usr/local/bin/$i" ] && echo "$i is not installed!" && MISSING_DEPS="true"
+		[ ! -f "/usr/bin/$i" ] && [ ! -f "/usr/local/bin/$i" ] && [ ! -f "/usr/bin/vendor_perl/$i" ] && echo "$i is not installed!" && MISSING_DEPS="true"
 	done
 
 	if [ -n "$MISSING_DEPS" ]
@@ -86,21 +89,39 @@ flag_finder()
 	# in base64. This should save lots of time when there's lots of data to go through
 	FILTERED_DATA="$(echo "$DATA" | awk "length(\$0) > $FLAG_BASE64_LEN")"
 
-	# Go line by line and look for base64/base32 strings
+	# Write the filtered data into a text file to get around argument length
+	# problems with filtering
+	FLAG_FIND_DATA_FILE="$(mktemp "/tmp/flag_finder_dataXXXXXX")"
+	echo "$FILTERED_DATA" > $FLAG_FIND_DATA_FILE
+
+	# Find all base64 candidates
+	BASE64_STRINGS="$("$BASE_FILTER" "$FLAG_FIND_DATA_FILE" base64)"
+
+	# Find all base32 candidates
+	BASE32_STRINGS="$("$BASE_FILTER" "$FLAG_FIND_DATA_FILE" base32)"
+
+	# Check base64 strings for flags
+	for i in $BASE64_STRINGS
+	do
+		echo -n "$i" | base64 -d | grep -o "$FLAG_GLOB" | check_flag "$1, base64"
+	done
+
+	# Check base32 strings for flags
+	for i in $BASE32_STRINGS
+	do
+		echo -n "$i" | base32 -d | grep -o "$FLAG_GLOB" | check_flag "$1, base32"
+	done
+
+	# Look for hex strings
 	for i in $FILTERED_DATA
 	do
-		BASE_RESULT="$("$BASE_CHECK" "$i")"
-
-		if [ -n "$(echo "$BASE_RESULT" | grep base64)" ]
+		if "$HEX_CHECK" "$i" &>/dev/null
 		then
-			echo -n "$i" | base64 -d | grep -o "$FLAG_GLOB" | check_flag "$1, base64"
-		fi
-
-		if [ -n "$(echo "$BASE_RESULT" | grep base32)" ]
-		then
-			echo -n "$i" | base32 -d | grep -o "$FLAG_GLOB" | check_flag "$1, base32"
+			echo -n "$i" | xxd -r -p | grep -o "$FLAG_GLOB" | check_flag "$1, hex"
 		fi
 	done
+
+	rm $FLAG_FIND_DATA_FILE
 }
 
 # Check the filetype
@@ -110,13 +131,23 @@ FILETYPE="$(file -b --mime-type "$FILE")"
 case $FILETYPE in
 	image/*)
 		# EXIF-data check
+		check_program "exiftool"
 		flag_finder "EXIF-data" "$(exiftool "$FILE" | cut -d':' -f2 | tr -d '^ ')"
 		;;
 
 	application/pdf)
+		# Check the EXIF-data
+		check_program "exiftool"
+		flag_finder "EXIF-data" "$(exiftool "$FILE" | cut -d':' -f2 | tr -d '^ ')"
+
 		# Convert the pdf file to text and grep it
 		check_program "pdftotext"
 		flag_finder "PDF to text" "$(pdftotext "$FILE" -)"
+
+		# Check the pdf metadata
+		check_program "pdfinfo"
+		flag_finder "PDF metadata" "$(pdfinfo "$FILE" | cut -d ':' -f2 | sed 's/^[[:space:]]*//g')"
+
 		;;
 
 	text/plain)

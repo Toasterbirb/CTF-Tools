@@ -7,3 +7,5 @@ add_executable(base_check ./base_check/base_check.c)
 add_executable(base_filter ./base_check/base_filter.c)
 target_link_libraries(base_check is_base)
 target_link_libraries(base_filter is_base)
+
+add_executable(vigenere_decode ./vigenere_decode/vigenere_decode.c)

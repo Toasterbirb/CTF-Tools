@@ -6,6 +6,16 @@
 #define TRUE 1
 #define FALSE 0
 
+/* Check if the key contains only letters */
+int is_valid_key(const char* key, const int len)
+{
+	int result = 0;
+	for (int i = 0; i < len; ++i)
+		result += (key[i] >= 'a' && key[i] <= 'z') || (key[i] >= 'A' && key[i] <= 'Z');
+
+	return result == len;
+}
+
 /* Converts the given string to lowercase inplace */
 void to_lower(char* text, int len)
 {
@@ -109,6 +119,12 @@ int main(int argc, char** argv)
 	if (decode_mode)
 	{
 		key_len = strlen(argv[2]);
+
+		if (!is_valid_key(key, key_len))
+		{
+			printf("\"%s\" is an invalid key! The key can only contain letters.\n", key);
+			return 3;
+		}
 
 		/* Convert the key to lowercase */
 		to_lower(key, key_len);

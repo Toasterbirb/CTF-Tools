@@ -30,6 +30,20 @@ int decode_char(const char key_c, const char cipher_c)
 	return decoded + 26;
 }
 
+int reverse_char(const char plain_c, const char cipher_c)
+{
+	/* Only decode letters */
+	if (cipher_c < 'a' || cipher_c > 'z')
+		return 0;
+
+	int key = cipher_c - plain_c + 'a';
+
+	if (key > 'a' - 1)
+		return key;
+
+	return key + 26;
+}
+
 int main(int argc, char** argv)
 {
 	if (argc == 1)
@@ -135,7 +149,18 @@ int main(int argc, char** argv)
 	/* Try to guess parts of the key when not in decode mode */
 	else
 	{
+		/* Print out valid key chars for the length of known plaintext */
+		unsigned int known_plaintext_len = strlen(known_plaintext);
 
+		/* If there's more known plaintext than cipher text
+		 * cap to cipher text length */
+		if (known_plaintext_len > cipher_len)
+			known_plaintext_len = cipher_len;
+
+		for (int i = 0; i < known_plaintext_len; ++i)
+			printf("%c", reverse_char(known_plaintext[i], cipher_text[i]));
+
+		printf("\n");
 	}
 
 	/* Free any allocated heap memory */

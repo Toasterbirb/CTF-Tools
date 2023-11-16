@@ -16,7 +16,7 @@ void to_lower(char* text, int len)
 int decode_char(const char key_c, const char cipher_c)
 {
 	/* Only decode letters */
-	if (cipher_c < 'a' || cipher_c > 'z' || key_c == 1)
+	if (cipher_c < 'a' || cipher_c > 'z')
 		return cipher_c;
 
 	int decoded = cipher_c - (key_c - 'a');

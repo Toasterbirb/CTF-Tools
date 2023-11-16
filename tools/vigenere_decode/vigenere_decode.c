@@ -77,13 +77,11 @@ int main(int argc, char** argv)
 	char* known_plaintext 	= argv[2];
 	char* cipher_text 		= argv[3];
 	char* plaintext;
-	unsigned int key_candidate_len, cipher_len;
+	unsigned int key_len, cipher_len;
 	int decode_mode = TRUE;
 
 	/** Parse the arguments **/
-
-	key_candidate_len 	= strlen(argv[2]);
-	cipher_len 			= strlen(argv[3]);
+	cipher_len 	= strlen(argv[3]);
 
 	switch (argv[1][1])
 	{
@@ -110,8 +108,10 @@ int main(int argc, char** argv)
 	/* Decode the cipher text if in decoding mode with known key */
 	if (decode_mode)
 	{
+		key_len = strlen(argv[2]);
+
 		/* Convert the key to lowercase */
-		to_lower(key, key_candidate_len);
+		to_lower(key, key_len);
 
 		/* Stretch the key to the length of the cipher text */
 		char* key_text = (char*)malloc(sizeof(char) * cipher_len + 1);
@@ -130,7 +130,7 @@ int main(int argc, char** argv)
 				key_text[i] = 95; /* use '_' as a placeholder for debugging purposes */
 			}
 
-			if (key_pos > key_candidate_len - 1)
+			if (key_pos > key_len - 1)
 				key_pos = 0;
 		}
 

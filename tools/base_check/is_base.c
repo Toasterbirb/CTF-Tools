@@ -5,6 +5,7 @@ int is_base64_char(char c, int index, int len)
 	return (c >= '0' && c <= '9') ||
 		   (c >= 'A' && c <= 'Z') ||
 		   (c >= 'a' && c <= 'z') ||
+		   c == '+' || c == '/'   ||
 		   (c == '=' && index >= len - 2);
 }
 

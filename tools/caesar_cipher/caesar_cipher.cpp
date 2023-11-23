@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <execution>
 #include <iostream>
 #include <string>
 
@@ -43,14 +45,13 @@ int main(int argc, char** argv)
 	int rotation_amount = std::stoi(argv[2]);
 
 	/* Process the text */
-	for (int i = 0; i < text.size(); ++i)
-	{
+	std::for_each(std::execution::par, text.begin(), text.end(), [rotation_amount](char& c) {
 		/* Handle uppercase letters */
-		text[i] = rotate_char(text[i], 'A', 'Z', rotation_amount);
+		c = rotate_char(c, 'A', 'Z', rotation_amount);
 
 		/* Handle lowercase letters */
-		text[i] = rotate_char(text[i], 'a', 'z', rotation_amount);
-	}
+		c = rotate_char(c, 'a', 'z', rotation_amount);
+	});
 
 	std::cout << text << "\n";
 

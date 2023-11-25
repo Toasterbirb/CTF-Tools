@@ -60,6 +60,16 @@ function check_flag()
 	[ -n "$flag_input" ] && echo -e "\e[31mThe flag was found with [$1]!\e[0m" && echo "$flag_input" && kill -SIGPIPE "$$"
 }
 
+# Usage: strings_check [file path to check] [parent check]
+check_program strings
+function strings_check()
+{
+	[ -n "$2" ] && PARENT_CHECK="$2, "
+	flag_finder "${PARENT_CHECK}strings" "$(strings "$1")"
+	flag_finder "${PARENT_CHECK}strings with whitespace removed" "$(strings "$1" | tr -d ' ')"
+	flag_finder "${PARENT_CHECK}strings with special characters removed" "$(strings "$1" | tr -d ',.!@$%&')"
+}
+
 # Check if all args are set correctly
 [ -z "$1" ] && print_usage
 [ -z "$2" ] && print_usage
@@ -154,22 +164,34 @@ case $FILETYPE in
 		# If the file is simply plain text (and possibly large)
 		# we can try grepping for the flag
 		flag_finder "grep" "$(grep "$FLAG_GLOB" "$FILE")"
+
+		# Try hex and base64 conversions in case they result in something sensible
+		TEMP_FILE="$(mktemp flag_searchXXX)"
+		cat "$FILE" | xxd -r -p 										> ${TEMP_FILE}
+		cat "$FILE" | xxd -r -p | tr -d '\n' 							> ${TEMP_FILE}_1
+		cat "$FILE" | xxd -r -p | base64 -d 2>/dev/null 				> ${TEMP_FILE}_2
+		cat "$FILE" | base64 -d 2>/dev/null | xxd -r -p 				> ${TEMP_FILE}_3
+		cat "$FILE" | base64 -d 2>/dev/null | tr -d '\n' 				> ${TEMP_FILE}_4
+		cat "$FILE" | xxd -r -p | base64 -d 2>/dev/null | xxd -r -p 	> ${TEMP_FILE}_5
+
+		# Check if any sensible filetypes were found
+		for i in ${TEMP_FILE} ${TEMP_FILE}_{1..5}
+		do
+			TYPE="$(file -b --mime-type "$i")"
+			if [ "$TYPE" != "text/plain" ]
+			then
+				echo "Found a file of type $TYPE: $i"
+				strings_check "$i" "plaintext decoding"
+			else
+				rm $i
+			fi
+		done
 		;;
 esac
 
 ## General strings check ##
 # The strings check is done last because it might consume lots of time
 # with larger files.
-check_program strings
-
-# Usage: strings_check [file path to check] [parent check]
-function strings_check()
-{
-	[ -n "$2" ] && PARENT_CHECK="$2, "
-	flag_finder "${PARENT_CHECK}strings" "$(strings "$1")"
-	flag_finder "${PARENT_CHECK}strings with whitespace removed" "$(strings "$1" | tr -d ' ')"
-	flag_finder "${PARENT_CHECK}strings with special characters removed" "$(strings "$1" | tr -d ',.!@$%&')"
-}
 
 # No need for parent "check" source here, since this is the first strings run
 strings_check "$FILE"
@@ -183,7 +205,7 @@ flag_finder "hexdump" "$(hexdump -e "16 \"%_p\" \"\\n\"" "$FILE" | tr -d '\n.')"
 ## binwalk ##
 check_program binwalk
 TMP_BINWALK="$(mktemp -u -d ./binwalk_out_XXXX)"
-binwalk -e -r -C "$TMP_BINWALK" "$FILE"
+binwalk --dd='.*' -e -r -C "$TMP_BINWALK" "$FILE"
 BINWALK_FILES="$(find $TMP_BINWALK -type f)"
 for i in $BINWALK_FILES
 do

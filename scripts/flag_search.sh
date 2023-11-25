@@ -174,6 +174,11 @@ function strings_check()
 # No need for parent "check" source here, since this is the first strings run
 strings_check "$FILE"
 
+# Look for the flag in the hexdump of the file in case the characters
+# are not all in a row but instead have empty air in between
+check_program hexdump
+flag_finder "hexdump" "$(hexdump -e "16 \"%_p\" \"\\n\"" "$FILE" | tr -d '\n.')"
+
 
 ## binwalk ##
 check_program binwalk

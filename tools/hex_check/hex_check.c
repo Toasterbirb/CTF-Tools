@@ -30,16 +30,20 @@ int main(int argc, char** argv)
 		int char_count = 0;
 		while (read(STDIN_FILENO, &c, 1) > 0)
 		{
+			/* Don't count newlines or the end of the string */
+			if (c == '\0' || c == '\n')
+				continue;
+
 			char_count++;
-			if (!is_hex_char(c) && c != '\0' && c != '\n')
+			if (!is_hex_char(c))
 			{
-				printf("The provided string was not a hex string\n");
+				printf("The provided string was not a hex string. Problematic char: %c\n", c);
 				return 1;
 			}
 		}
 
 		/* Hex values are always divisible by two (assuming they come in pairs of two) */
-		if ((char_count - 1) % 2 != 0)
+		if ((char_count) % 2 != 0)
 		{
 			printf("The provided string was not a hex string\n");
 			return 1;

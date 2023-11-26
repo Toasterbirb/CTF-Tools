@@ -1,7 +1,7 @@
 name: "Bug report"
 about: "Report a problem with the project that is caused be unexpected behavior"
 title: "[BUG] "
-ref: "dev"
+ref: "master"
 labels:
   - bug
 body:

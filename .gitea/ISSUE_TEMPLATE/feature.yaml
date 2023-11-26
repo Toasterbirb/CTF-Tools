@@ -1,7 +1,7 @@
 name: "Feature request"
 about: "Make a new suggestion for a new feature"
 title: "[FEATURE] "
-ref: "dev"
+ref: "master"
 labels:
   - enhancement
 body:
